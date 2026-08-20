@@ -81,14 +81,84 @@ user-visible failure is not a dropped parameter — it is a working parameter wi
 tokenizer-level ceiling, and the degraded output (`yell ow`) reads as *more* broken
 than no ban at all.
 
+## Follow-up tests (1-3), same engine and model
+
+Three questions the first pass left open. All at `temperature: 0`, `seed: 1`; determinism
+was established in the first pass, so one run per cell.
+
+### 1. Ban-set size and strength — the collapse is real, but only under contention
+
+A 4-phrase ban set (`suddenly / chuckle / nodded / smirked`, GobboNet's own UI placeholder,
+39 canonical ids) caused **no** degradation on ordinary prompts at -5, -10 or -20: every
+cell was byte-identical to the no-ban control, because greedy decoding never reached for a
+banned token. The ban was simply inert.
+
+Degradation appears only when the prompt **contends** with a banned token. Same prompt, ban
+off vs on, measured as distinct-word ratio and the max repeat count of any 4-word shingle:
+
+```
+ban OFF      chars=207  distinct=0.80  rep4=1   "...the word "yellow letter by letter": **b-l-u-e**..."
+ban ON (-20) chars=183  distinct=0.44  rep4=6   "...the word "blue" ... - b-l-u-e - l-u-e - u-l-e - e-l-e - l-e - e"
+```
+
+Strength sweep on that contended prompt shows a cliff, not a gradient:
+
+| strength | suppresses | quality |
+|---|---|---|
+| off, -1, -2, -3 | no | intact (0.80 / rep4=1) |
+| -5 | no | intact (0.83 / rep4=1) |
+| -10, -20, -50, -100 | **yes** | **collapsed (0.44 / rep4=6)** |
+
+Identical output from -20 through -100 — the bias saturates. There is no value that both
+suppresses and preserves the prose. **The strength knob cannot fix this**, so GobboNet's
+-20 default is not the defect and retuning it buys nothing. The collapse is structural,
+which is further reason the fix has to be a string-level guard.
+
+### 2. Sub-token expansion — refuted, and counterproductive
+
+The first pass suggested expanding the ban set with sub-token splits. Tested and **withdrawn.**
+Expanding `yellow` from 6 to 43 ids did not close the decomposition route, it only changed
+which route the model took — and made the leak *cleaner*:
+
+| ban set | output | normalized leak |
+|---|---|---|
+| none | `yellow yellow yellow…` | yes |
+| canonical, 6 ids | `yell ow, yell ow…` | yes |
+| expanded, 43 ids | `.yellow.yellow.yellow…` | yes — **word fully intact** |
+
+Collateral damage was nil (byte-identical to control on an unrelated prompt), but the
+mitigation makes the banned word *more* legible, not less. Do not ship it.
+
+### 3. Version scope — the shape behavior is not version-specific
+
+Repeated the shape matrix on **b10509**, the current release at time of test and 1,215
+builds past the pin. Same tokenizer ids, and identical results: map suppresses,
+`[{id,bias}]` is silently ignored (byte-identical to baseline, HTTP 200), pairs suppress.
+So the "do not apply the proposed fix" conclusion is absolute rather than pinned-build
+specific, and this behavior is not a blocker for bumping `LLAMA_PIN_TAG`.
+
 ## Disposition
 
-- `q-logit-bias-root-cause`: **closed, hypothesis refuted.** Not a payload-shape defect.
+- `q-logit-bias-root-cause`: **closed, hypothesis refuted.** Not a payload-shape defect,
+  on either the pinned build or current latest.
 - The P1-3 / Pass-5-#2 finding should be rewritten: the defect is the absence of a
   surface-string guard, not a malformed request.
-- Real fix directions are the two the code comment already names — a GBNF grammar, or a
+- Real fix directions remain the two the code comment already names — a GBNF grammar, or a
   streaming post-filter on the decoded text. Both are string-level; neither is a one-liner.
-- A cheap partial mitigation: expand the ban set with common sub-token splits of each
-  phrase. Raises the cost of routing around the ban without pretending to close it.
+  Follow-up test 1 adds a reason to prefer them: the failure is structural, not tunable.
+- **Withdrawn:** the sub-token-expansion mitigation floated in the first pass. Follow-up
+  test 2 shows it leaves the word fully intact rather than mangled — worse than doing
+  nothing.
+- Worth filing as its own defect: banning a word the character would naturally use often
+  degrades the prose (distinct-word ratio 0.80 -> 0.44) whenever the model actually contends
+  with the ban. That is a second, separable bug from the leak itself.
+- **Scope caveat, and it bears on the item above.** Every generation in this document came
+  from one model, Qwen2.5-0.5B-Instruct-Q4_K_M. The shape findings are model-independent —
+  that is server-side parameter parsing — but the decomposition ceiling is **tokenizer-
+  specific**, and a 0.5B model degenerates far more readily than the 7B-12B models users
+  actually run. So the contention-collapse defect is demonstrated on the model most likely
+  to exaggerate it, and should be re-measured at realistic model size before filing. Note
+  that `README.md`'s other known bug is also tokenizer-related (Tekken), which is reason to
+  assume this behavior varies more across tokenizers than one model can show.
 - **Nothing filed upstream.** The drafted issue body in the plan should not be sent as
   written — its proposed fix is harmful. No PR or issue was opened by this run.

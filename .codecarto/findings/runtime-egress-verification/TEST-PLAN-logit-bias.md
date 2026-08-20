@@ -102,11 +102,18 @@ still lists logit bias under Known Bugs and no open PR or issue covers the root 
 not go out as written** — it recommends the harmful reshape. What is worth filing is the
 capture: the bias is applied faithfully and the model routes around it, so the fix is a
 surface-string guard (GBNF grammar, or a streaming post-filter on decoded text), both
-string-level and neither a one-liner. A cheaper partial mitigation is to expand the ban set
-with common sub-token splits of each phrase — that raises the cost of routing around the
-ban without pretending to close it.
+string-level and neither a one-liner. The sub-token-expansion mitigation first floated
+here has since been tested and **withdrawn**: expanding the set from 6 to 43 ids left the
+banned word fully intact (`.yellow.yellow.`) instead of mangled, which is worse than doing
+nothing.
 
-Two gaps this run left open: the app was not driven end-to-end through `launch.bat` to
-capture a real in-browser request (the server contract was tested directly, which is what
-settles the hypothesis), and no engine build other than `b9294` was checked — the
-ignored-shape result may differ on other tags, so re-test before bumping `LLAMA_PIN_TAG`.
+Follow-up tests closed two of the three gaps. The shape matrix was re-run on **b10509**
+(current release, 1,215 builds past the pin) with identical results, so the conclusion is
+not version-scoped and does not block a `LLAMA_PIN_TAG` bump. And the strength knob was
+swept under contention: below -10 the ban is inert, at -10 and above it works but the prose
+collapses (distinct-word ratio 0.80 -> 0.44, saturating from -20 to -100). There is no
+setting that does both, so `-20` is not the defect and retuning it buys nothing.
+
+One gap remains: the app was not driven end-to-end through `launch.bat` to capture a real
+in-browser request. The server contract was tested directly, which is what settles the
+hypothesis, but a maintainer-facing report would be stronger with the capture.
