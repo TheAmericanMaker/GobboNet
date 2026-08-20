@@ -64,7 +64,49 @@ logit_bias: Object.entries(logitBias).map(([id, bias]) => ({ id: Number(id), bia
 
 ## Status
 
-Not filed upstream. `README.md` still lists logit bias under Known Bugs, and no open PR or issue
-covers the root cause (checked against the upstream queue on 2026-08-20: PRs #2-#15, issues #1-#14).
-The drafted issue body is ready and is held deliberately until this test runs, because
-"probably the bug" is worth much less to the maintainer than a capture.
+**Test executed 2026-08-20 against the pinned engine. Hypothesis refuted, and inverted.**
+Full capture in `TEST-RESULT-logit-bias.md`; the short version is below.
+
+The map form is the shape that *works*. Against `b9294` on `/v1/chat/completions`, at
+`temperature: 0` with three deterministic runs per cell, `{"13753": -20}` suppressed the
+banned word and `[{"id":13753,"bias":-20}]` — the fix proposed above — came back
+byte-identical to the no-bias baseline. Silently ignored: HTTP 200, no parse complaint in
+the server console. The pair form `[[13753,-20]]` also works. So the shape table in this
+plan is backwards; OpenAI's `logit_bias` is a map of token id to bias and llama.cpp's
+OAI-compat layer follows it. The one shape `b9294` ignores is precisely the one this plan
+proposed.
+
+**Do not apply the "Proposed fix" section above.** It converts a working map into the only
+shape that fails, and it would fail silently. Two related corrections to this plan: the
+default strength is `-20` (`js/04-state.js:88`), not the `-5` used in the examples, and
+there are **two** call sites — `js/10-chat.js:166` (send) and `js/10-chat.js:779`
+(regenerate) — so any reshape would belong inside `buildLogitBias`, not "at the call site".
+
+The endpoint outcome that actually applied was the third one in the table above — both
+valid shapes suppress, so the bug is elsewhere. It is the ceiling already documented in
+`js/06-state-sync.js:718-721`: `logit_bias` reaches canonical token ids only. Pushed hard
+toward the banned word, the model re-spelled it as `y` + `ell` + ` ow` / ` yell` + ` ow`,
+with **zero** overlap against the six banned ids. A literal substring check says the ban
+held; the reader sees the word anyway, mangled. That is the whole of what `README.md:265`
+means by "won't reliably keep it out" — a working parameter with a tokenizer-level
+ceiling, not a dropped payload.
+
+Transport and wiring were both cleared while chasing this, so neither needs revisiting:
+`POST /llm/jobs` hands the body to its worker as a byte-exact string
+(`fileserver.ps1:1046`) with no `ConvertTo-Json` round-trip, and
+`card-banned-phrases` -> `card.bannedPhrases` -> `buildLogitBias` is consistent.
+
+Still nothing filed upstream, and the hold now stands for a different reason. `README.md`
+still lists logit bias under Known Bugs and no open PR or issue covers the root cause
+(upstream queue as of 2026-08-20: PRs #2-#15, issues #1-#14). **The drafted issue body must
+not go out as written** — it recommends the harmful reshape. What is worth filing is the
+capture: the bias is applied faithfully and the model routes around it, so the fix is a
+surface-string guard (GBNF grammar, or a streaming post-filter on decoded text), both
+string-level and neither a one-liner. A cheaper partial mitigation is to expand the ban set
+with common sub-token splits of each phrase — that raises the cost of routing around the
+ban without pretending to close it.
+
+Two gaps this run left open: the app was not driven end-to-end through `launch.bat` to
+capture a real in-browser request (the server contract was tested directly, which is what
+settles the hypothesis), and no engine build other than `b9294` was checked — the
+ignored-shape result may differ on other tags, so re-test before bumping `LLAMA_PIN_TAG`.
