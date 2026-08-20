@@ -1,0 +1,117 @@
+schema_version: 1
+phase_id: architecture
+owner_notes:
+  - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+  - "Repo is a Windows-only, fully-local AI chatbot frontend: launch.bat (1973 lines) + fileserver.ps1 (1618) + hardware-probe.ps1 (1961) + identify-model.ps1 (477) + setup-lan.bat (178) + chat.html (906) + 24 numbered js files (~11k lines) + 15 numbered css files + default-characters.json."
+  - "Evidence basis is source inspection only: no runtime verification possible (Windows-only), no tests in repo, no CI. All five secondary outputs written with dated 2026-08-18 sections."
+  - "Key structural findings: linear numbered JS load order is a declared contract (no module system, global namespace); fileserver.ps1 is a single-threaded HttpListener accept loop with PowerShell runspaces for detached generation jobs; cross-process hot-swap coordination via .swap-in-progress lock file; per-origin browser storage silos patched by /state server sync."
+  - "CONVENTIONS.md and DECISIONS.md are still template skeletons (no promoted conventions, no decisions yet); closeouts/ contains only the framework feedback-pass file."
+open_questions:
+  - id: q-installer-packaging
+    kind: needs-maintainer-decision
+    description: "GobboNetSetup.exe / launch.exe / launchLAN.exe are referenced by README but absent from the repo; installer internals (file layout, Start Menu registration, uninstaller behavior) are unknown."
+    deferred_reason: "No later phase in this pipeline can close it; requires the maintainer or the release artifacts."
+  - id: q-refactor-plan
+    kind: needs-maintainer-decision
+    description: "Every js/css split header says 'see REFACTOR-PLAN.md before reordering' but the file is not in the repo."
+    deferred_reason: "Missing artifact; only the maintainer can supply it."
+  - id: q-font-shipping
+    kind: needs-maintainer-decision
+    description: "fonts/atkinson-hyperlegible.woff2 is referenced by css/01-tokens.css but the fonts/ directory is absent from the repo; whether the installer ships it is unknown."
+    deferred_reason: "Not resolvable from source; cosmetic (documented fallback stack)."
+  - id: q-accept-loop-scale
+    kind: needs-runtime-test
+    description: "fileserver.ps1's synchronous GetContext() accept loop handles one request at a time; behavior under multiple concurrent LAN clients is unmeasured."
+    deferred_reason: "Requires live load testing against the running Windows service."
+  - id: q-ollama-api-version
+    kind: needs-runtime-test
+    description: "The search proxy forwards to https://ollama.com/api + path; the exact web_search request/response contract and its stability are not pinned in-repo."
+    deferred_reason: "Requires a live capture against Ollama's API; wire-format extraction also routed to protocols (arch-CF1)."
+carry_forward:
+  - id: arch-CF1
+    kind: defer-to-phase
+    target_phase: protocols
+    description: "Wire formats: SSE spool byte format + /llm/jobs chunk framing (chunk_b64, from/max offsets), /state JSON schema + mtime protocol, swap-status phase machine, GGUF metadata fields consumed, character-card V1/V2/V3 field mapping, Ollama web_search schema."
+    deferred_reason: "Wire-format extraction is the protocols phase's rubric; the architecture phase only names the surfaces."
+  - id: arch-CF2
+    kind: defer-to-phase
+    target_phase: contracts
+    description: "User-visible behavior contracts for the README feature list (streaming, reroll, branching, lore compression, macros, scheduler, hot-swap, data export/import, extensions) — triggers, defaults, outputs, side effects, error behavior."
+    deferred_reason: "The contracts phase owns black-box behavior recovery; the architecture map only locates where behavior lives."
+  - id: arch-CF3
+    kind: defer-to-phase
+    target_phase: defect-scan-mechanical
+    description: "Config hazards: LLAMA_PIN_SHA256 and EMBED_PIN_SHA256 ship empty (downloads unpinned until first run); the batch-only password-file check is deliberately looser than the PowerShell consumer; per-model CTX_SIZE/KV_CACHE_TYPE overrides in the download menu can silently diverge from header defaults."
+    deferred_reason: "Pass 6 (config and environment) is the mechanical scan's rubric."
+  - id: arch-CF4
+    kind: defer-to-phase
+    target_phase: defect-scan-mechanical
+    description: "README-declared known bugs need location/severity/evidence treatment: logit bias broken (banned words non-functional) and Tekken-tokenizer models misbehaving with a possibly-incomplete patch."
+    deferred_reason: "Pass 1 (logic and correctness) is the mechanical scan's rubric."
+  - id: arch-CF5
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "Security posture: plain-HTTP LAN transport with password + 12h session TTL + client-fingerprint cookie binding; unsandboxed per-card JS and extensions; README's search-privacy claim vs privacyFetch being a passthrough and the proxy forwarding body+Authorization verbatim."
+    deferred_reason: "Passes 4 (security and trust) and 5 (API contract violations) are the semantic scan's rubric."
+  - id: arch-CF6
+    kind: defer-to-phase
+    target_phase: porting
+    description: "Portability hazard inventory: PowerShell HttpListener + runspaces, cmd batch orchestration (taskkill/tasklist/start/netsh), browser storage + Page Lifecycle APIs, mDNS/.local origin stability, Windows-only System32 tooling, AV-avoidance download patterns."
+    deferred_reason: "The porting phase synthesizes hazards into a porting-oriented view."
+carry_forward_closures: []
+open_question_closures: []
+post_pipeline: []
+decisions:
+  - "Architecture phase treated the repo (not the installer binaries) as the system boundary; installer packaging recorded as open question q-installer-packaging rather than guessed."
+  - "Evidence levels used are the four SKILL.md levels (observed fact / strong inference / portability hazard / open question) with file:line citations, per the phase skill rather than the template's older fact/inference/open-question trio."
+proposed_conventions:
+  - name: numbered-load-order-contract
+    rule: "The js/ and css/ files are loaded in strict numeric order and share one global namespace; any reordering or module-system introduction must preserve the load-order contract declared in every split header."
+    evidence: "Every js/*.js and css/*.css header carries the 'Load order is a contract' banner; chat.html:881-900 loads them in order; 24-boot.js is the boot entry point."
+  - name: env-var-handoff
+    rule: "Cross-process configuration between launch.bat and fileserver.ps1 passes exclusively through GEMMA_* environment variables, never through command-line interpolation, to avoid batch quoting/escaping defects."
+    evidence: "launch.bat:1644-1667 sets GEMMA_*; fileserver.ps1:29-32, 42-67 reads them with Get-EnvOrDefault."
+closeout_summary: "Architecture phase complete: layer map, dependency direction, public surfaces, runtime lifecycle, concurrency model, build/packaging, and porting priorities mapped for GobboNet (Windows-only local AI chat frontend: batch launcher + PowerShell file server + vanilla JS browser UI + llama.cpp). All five secondary outputs written. Validation PASS (6/6 criteria). Six carry-forward entries routed to protocols, contracts, defect-scan-mechanical, defect-scan-semantic, and porting; five open questions recorded."
+closeout_content: |-
+  # Closeout — architecture
+
+  ## Summary
+
+  - Mapped GobboNet: a Windows-only, fully-local AI chatbot frontend (launch.bat orchestrator, fileserver.ps1 HTTP server/reverse proxy/hot-swap controller, vanilla HTML/CSS/JS chat UI, llama.cpp engine, optional embed + search proxies).
+  - Layer map: product shell (launch.bat, setup-lan.bat) → integration adapters (fileserver.ps1, search proxy, hardware-probe.ps1) → protocol/normalization (identify-model.ps1, client-side prompt/context building) → UI/rendering + persistence (chat.html, 24 numbered js files, 15 numbered css files). Stable base: js/01-config.js + js/04-state.js.
+  - Dependency direction: launch.bat → everything; fileserver.ps1 → upstream services; frontend → fileserver (same-origin) or localhost (file://); JS linear numbered load order, global namespace, no module system; CSS cascade 01→15. No structural cycles; intentional lock-file coordination between fileserver.ps1 and the monitor loop.
+  - Public surfaces: 1 user CLI (launch.bat), 1 admin script (setup-lan.bat), ~15 HTTP routes on :8080 behind password + session cookie, 3 upstream APIs (llama-server, embed server, Ollama search), 7 file formats, 8 screens/modals.
+  - Runtime lifecycle: 15-step host boot, 7-step browser boot, detached-job generation lifecycle, hot-swap phase machine, monitor-loop supervision, boot-time hygiene.
+  - Concurrency: single-threaded browser event loop (one generation at a time); single-threaded HttpListener accept loop + max-4 worker runspaces; batch monitor loop; llama-server --parallel 1.
+  - Build: no build step; distribution via unsigned installer (outside repo) or ZIP; one-time verified downloads; no CI.
+  - Porting priorities: llama-server integration, fileserver, state/persistence, chat core = core; RAG, cards, data mgmt = important; hardware probe, search proxy = optional; launch.bat = incidental.
+
+  ## Coverage
+
+  - Inspected: README (full), chat.html (structure), all js/css headers + key bodies, launch.bat (majority), fileserver.ps1 (config/auth/state/jobs/swap/static/proxy/dispatch), setup-lan.bat, hardware-probe.ps1 (header/schema), identify-model.ps1 (header/GGUF parsing), default-characters.json, .gitignore, LICENSE.
+  - Skipped (routed to later phases): deep bodies of render/dashboard/cards/card-io/personas/utils/extensions/macros/data/card-code; hardware-probe detection layers; identify-model family tables; fileserver proxy/job-worker internals; css bodies.
+  - Evidence basis: source inspection only. No runtime verification (Windows-only), no tests, no CI.
+  - Disposition: COMPLETE.
+
+  ## Open Questions
+
+  - q-installer-packaging, q-refactor-plan, q-font-shipping (needs-maintainer-decision)
+  - q-accept-loop-scale, q-ollama-api-version (needs-runtime-test)
+
+  ## Carry-Forward
+
+  - arch-CF1 → protocols (wire formats)
+  - arch-CF2 → contracts (user-visible behavior)
+  - arch-CF3, arch-CF4 → defect-scan-mechanical (config hazards; known bugs)
+  - arch-CF5 → defect-scan-semantic (security posture)
+  - arch-CF6 → porting (portability hazard synthesis)
+
+  ## Proposed Conventions
+
+  - numbered-load-order-contract
+  - env-var-handoff
+
+  ## Decisions Beyond Prompt
+
+  - System boundary = repo contents; installer binaries recorded as open question, not guessed.
+  - Evidence levels follow the phase SKILL.md's four-level vocabulary with file:line citations.

@@ -1,0 +1,71 @@
+schema_version: 1
+phase_id: protocols
+owner_notes:
+  - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+  - "Primary output: .codecarto/findings/protocols/protocols-and-state.md — 18 protocol/event-stream entries (P1-P18), 5 state machines (SM1 job lifecycle, SM2 swap-status phase machine, SM3 state-sync + boot decision matrix, SM4 stream parser phases, SM5 jobsAvailable probe), persistent schema notes for 8 storage mechanisms, 19-row compatibility hazard table. Validation: PASS (6/6 criteria)."
+  - "Routed item arch-CF1 closed: SSE spool byte format + /llm/jobs chunk framing (chunk_b64, from/max offsets), /state JSON schema + mtime protocol, swap-status phase machine, GGUF metadata fields consumed, character-card V1/V2/V3 field mapping, and the Ollama web_search schema (proxy decoded from launch.bat:1608) are all extracted with file:line citations. Closure recorded in carry_forward_closures."
+  - "All four secondary outputs appended with dated 2026-08-18 protocols sections (public-surfaces, runtime-lifecycle, state-and-storage, config-model)."
+  - "Evidence basis is source inspection only: no runtime verification possible (Windows-only), no tests in repo, no CI. Full reads: fileserver.ps1 (1618), js/03-generation.js (1120), js/06-state-sync.js (854), js/05-persistence.js (667), js/16-card-io.js (737), js/11-search.js (222), identify-model.ps1 (477), js/24-boot.js (154); large partial reads of js/02-model.js, js/08-rag.js, js/10-chat.js, js/01-config.js, launch.bat; decoded the search-proxy encoded command (launch.bat:1608) in full."
+  - "Two new carry-forward entries routed to defect-scan-semantic: proto-CF1 (mid-generation 401 cancels the live job via the DELETE-ack path despite the error message promising re-attach) and proto-CF2 (lazy swap readiness promotion + orphaned .swap-in-progress lock blocks the monitor loop indefinitely)."
+  - "Four open questions recorded: q-ollama-api-version (carried from architecture, still open), q-websearch-response-fields (refines it), q-sse-done-marker, q-llama-server-diag-endpoints."
+open_questions:
+  - id: q-ollama-api-version
+    kind: needs-runtime-test
+    description: "The search proxy forwards to https://ollama.com/api + path; the exact web_search request/response contract and its stability are not pinned in-repo. The protocols phase decoded the proxy (verbatim forwarder) and the client (request {query, max_results}, response {results:[{title,content,url}]}) — the upstream schema beyond that remains invisible."
+    deferred_reason: "Requires a live capture against Ollama's API."
+  - id: q-websearch-response-fields
+    kind: needs-runtime-test
+    description: "Refines q-ollama-api-version: the client reads only title/content/url per result (11-search.js:184-190); whether the upstream returns additional fields and whether max_results is honored is unknown."
+    deferred_reason: "Proxy forwards verbatim; not visible in-repo."
+  - id: q-sse-done-marker
+    kind: needs-runtime-test
+    description: "Whether the pinned llama-server build (b9294) terminates streams with 'data: [DONE]' or simply closes the connection. The client handles both (02-model.js:414, feeder flush on EOF), but the spooled transcript's exact terminal bytes are unverifiable from source."
+    deferred_reason: "Requires a live capture against the pinned build."
+  - id: q-llama-server-diag-endpoints
+    kind: needs-runtime-test
+    description: "gobboDiag() calls GET /props and POST /apply-template (06-state-sync.js:589-600); their exact response shapes are not documented in-repo (diagnostic-only, not load-bearing)."
+    deferred_reason: "Requires a live call against the pinned build."
+carry_forward:
+  - id: proto-CF1
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "Session expiry mid-generation: the job poll returns 401 -> the client treats it as terminal, clears the breadcrumb, and DELETEs the job — which flags cancel and kills the still-running generation (03-generation.js:375, 452-465; fileserver.ps1:872-880). The error message ('reload the page and sign in to re-attach') promises re-attachment the code path has already foreclosed. Assess as a pass-5 contract violation (error behavior vs actual behavior)."
+    deferred_reason: "Contract-drift assessment is pass 5 of the semantic scan."
+  - id: proto-CF2
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "Swap readiness promotion is lazy (only advances when /swap-status is polled, fileserver.ps1:1380-1383). If the client stops polling mid-swap (tab closed), the .swap-in-progress lock persists and launch.bat's monitor loop stands down indefinitely (launch.bat:1845-1858) — no crash-restart protection until the next fileserver boot. Assess as a pass-3 concurrency/lifecycle defect."
+    deferred_reason: "Concurrency is pass 3 of the semantic scan."
+carry_forward_closures:
+  - arch-CF1
+open_question_closures: []
+post_pipeline: []
+decisions:
+  - "The Ollama web_search upstream response schema beyond {results:[{title,content,url}]} is recorded as an open question (q-websearch-response-fields) rather than guessed; the proxy is a verbatim forwarder so the schema is genuinely not visible in-repo."
+  - "The mid-generation 401 path (client clears breadcrumb + DELETEs the job, cancelling the live generation) is recorded as a protocol fact and routed to defect-scan-semantic as proto-CF1 rather than ruled on here; the protocols phase documents behavior, it does not rule on defects."
+proposed_conventions: []
+closeout_summary: "Protocols phase complete: 18 protocol/event-stream entries (P1-P18) with producer/consumer/transport/ordering/required/optional/identifiers/error/restart fields, 5 state machines with guards and side effects, persistent schema notes for 8 storage mechanisms, 19 compatibility hazards, coverage section, and validation PASS (6/6 criteria). Routed item arch-CF1 closed (all six wire formats extracted with file:line citations, including the decoded search-proxy command). All four secondary outputs appended with dated 2026-08-18 protocols sections. Two new carry-forward entries routed to defect-scan-semantic (proto-CF1, proto-CF2); four open questions recorded (q-ollama-api-version, q-websearch-response-fields, q-sse-done-marker, q-llama-server-diag-endpoints)."
+closeout_content: |-
+  # Closeout — protocols
+
+  ## Summary
+
+  - Extracted 18 protocols/event streams across six boundary classes: process-to-process (GEMMA_* env, model metadata files, .gobbonet-secret, .llama-launch.cmd + lock), UI-to-core (auth/session, /state sync, /llm/jobs relay, swap protocol), core-to-provider (llama-server SSE, /tokenize, embeddings, Ollama web_search), tool-to-runtime (GGUF metadata), runtime-to-persistence (IndexedDB v2, localStorage mirror, spool files), and local-files-to-exported-artifacts (character cards V1/V2/V3, export bundles).
+  - Converted control flow into 5 state machines: generation-job lifecycle (server + client), swap-status phase machine, client state-sync + boot decision matrix, stream-parser thinking-format phases, and the jobsAvailable probe tri-state. Synchronous barriers separated from observational events in each.
+  - Persistence semantics captured for IndexedDB v2 (mutable, per-record writes, threadOrder sidecar), localStorage mirror (quota-normalized), /state blob (last-write-wins, mtime-only versioning), job spool (append-only .sse + mutable .json + flag .cancel), swap status/lock, model metadata, secret file, and export bundles.
+  - 19 compatibility hazards tabled, led by client/fileserver version skew, file:// vs served mode, per-origin storage, GGUF v2/v3-only parsing, card-format lossiness, and the mistral-v7-tekken template-name footgun.
+
+  ## Routed item closure
+
+  - arch-CF1 closed: SSE spool byte format + /llm/jobs chunk framing (chunk_b64, from/max offsets, 256KB budget), /state JSON schema + mtime protocol (ms precision, X-State-Mtime header), swap-status phase machine (idle/starting/ready/error with lazy promotion), GGUF metadata fields consumed (chat_template, architecture, context_length; v2/v3 only), character-card V1/V2/V3 field mapping (all three carriers), and the Ollama web_search schema (proxy decoded from launch.bat:1608 — verbatim forwarder; client request/response extracted; upstream remainder recorded as open question).
+
+  ## Decisions Beyond Prompt
+
+  - The Ollama upstream response schema beyond {results:[{title,content,url}]} is recorded as an open question rather than guessed (the proxy forwards verbatim, so the schema is genuinely not visible in-repo).
+  - The mid-generation 401 path (client clears breadcrumb + DELETEs the job, cancelling the live generation) is recorded as a protocol fact and routed to defect-scan-semantic as proto-CF1 rather than ruled on here.
+
+  ## Coverage
+
+  - Inspected: fileserver.ps1 (full), js/03-generation.js (full), js/06-state-sync.js (full), js/05-persistence.js (full), js/16-card-io.js (full), js/11-search.js (full), identify-model.ps1 (full), js/24-boot.js (full), large partial reads of js/02-model.js, js/08-rag.js, js/10-chat.js, js/01-config.js, launch.bat; decoded the search-proxy encoded command in full.
+  - Skipped: js/07-prompt, 12-render, 13-dashboard, 14-scroll, 15-cards, 17-personas, 18-utils, 19-extensions, 20-macros, 21-data, 22-scheduler, 23-card-code; chat.html; css/*; hardware-probe.ps1; setup-lan.bat; remaining launch.bat sections.
+  - Evidence basis: source inspection only (Windows-only, no runtime verification possible). Disposition: COMPLETE.

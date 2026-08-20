@@ -1,0 +1,57 @@
+schema_version: 1
+phase_id: porting
+owner_notes:
+  - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+  - "Primary output: .codecarto/findings/porting/reverse-engineering-bundle.md — the pipeline's intentional compression boundary for reimplementation-spec. Validation: PASS (7/7 criteria)."
+  - "Synthesis of all five upstream artifacts (architecture, contracts, protocols, mechanical defects, semantic defects): 8 concept-named layers, 55-row feature contract table (core 19 / important 22 / optional 12 / incidental 2), protocol/state notes (P1-P18, SM1-SM5, 8 persistence schemas), 28-row portability hazard table, 34-defect synthesis (fix before porting 12 / port differently 15 / leave behind 7), Source Index with deep-read triggers for all upstream artifacts and all five secondary outputs."
+  - "Routed item arch-CF6 closed: the architecture phase's portability hazard inventory (PowerShell HttpListener + runspaces, cmd batch orchestration, browser storage + Page Lifecycle APIs, mDNS/.local origin stability, Windows-only System32 tooling, AV-avoidance download patterns) is folded into the bundle's Portability Hazards section; closure recorded in carry_forward_closures."
+  - "All five secondary outputs appended with dated 2026-08-18 porting sections (public-surfaces, runtime-lifecycle, state-and-storage, build-and-deploy, config-model)."
+  - "Conflict surfaced, not hidden: the contracts phase's owner_notes/validation claim 40 contracts (24 Web UI) while behavioral-contracts.md contains 55 contract sections (39 Web UI + 6 CLI + 6 HTTP + 4 storage). The bundle follows the file (55 rows) and flags the discrepancy for the orchestrator."
+  - "All 10 open questions from earlier phases re-triaged against this phase's reading; none became answerable from source. They remain tracked under their originating phases; the bundle lists them for self-sufficiency. No new open questions from this phase."
+  - "Evidence basis: upstream findings only (source inspection by five prior phases with file:line citations). No runtime verification possible (Windows-only), no tests in repo, no CI. No new source reading was required — this is a synthesis phase."
+open_questions: []
+carry_forward:
+  - id: porting-CF1
+    kind: defer-to-phase
+    target_phase: reimplementation-spec
+    description: "The Strategic Alignment Hook (language-agnostic vs opinionated spec) must be run before the spec phase; the bundle is written language-agnostic and does not pre-lock a target stack, project identity, or scope cuts."
+    deferred_reason: "The hook is a user conversation the spec phase owns (GUIDE.md §Strategic Alignment Hook); under --auto the spec defaults to language-agnostic and records the choice as an open question."
+carry_forward_closures:
+  - arch-CF6
+open_question_closures: []
+post_pipeline: []
+decisions:
+  - "The bundle follows the contracts file's actual 55 contract sections rather than the owner_notes' claimed 40; the discrepancy is surfaced in the bundle's Coverage and limits and here for the orchestrator to reconcile."
+  - "Defect dispositions are carried forward verbatim from the two defect reports (fix before porting / port differently / leave behind); the porting phase re-groups them by disposition but does not re-adjudicate severities or actions."
+  - "The two security-posture items (plain-HTTP transport, unsandboxed card code/extensions) remain 'port differently' per D009: the bundle instructs the reimplementation to re-make those choices consciously rather than silently inheriting or silently dropping them."
+proposed_conventions:
+  - name: porting-bundle-is-the-compression-boundary
+    rule: "The reimplementation-spec phase starts from findings/porting/reverse-engineering-bundle.md alone and deep-reads upstream reports only on the triggers named in the bundle's Source Index; any claim the bundle cannot support must be routed back as a gap, not silently re-derived from upstream."
+    evidence: "GUIDE.md §Synthesis compression boundary; this phase's Source Index names the exact deep-read trigger for each upstream artifact and secondary output."
+closeout_summary: "Porting phase complete: reverse-engineering bundle synthesized from all five upstream artifacts (55 feature contracts, 34 defects, 28 portability hazards, protocol/state notes, Source Index with deep-read triggers); arch-CF6 closed; five secondary outputs appended; validation PASS (7/7)."
+closeout_content: |-
+  # Closeout — porting
+
+  ## Summary
+
+  - Synthesized the reverse-engineering bundle at findings/porting/reverse-engineering-bundle.md from architecture, contracts, protocols, mechanical defects, and semantic defects.
+  - Layer map uses concept names (product shell, provider adapter, message normalizer, agent loop, session store, tool executor, render loop/UI surface, hardware probe) — the target must not mirror the source folder layout.
+  - Feature contract table: 55 rows with porting priority (core 19 / important 22 / optional 12 / incidental 2), each referencing the upstream contract and relevant defect findings with dispositions.
+  - Defect synthesis: all 34 findings (17 mechanical + 17 semantic) grouped by disposition — fix before porting 12, port differently 15, leave behind 7 — each with a required design consequence.
+  - Portability hazards: 28 rows consolidating all prior phases; closes arch-CF6.
+  - Source Index: deep-read triggers for every upstream artifact and all five secondary outputs, making the bundle the self-contained compression boundary for reimplementation-spec.
+  - Validation: PASS (7/7 criteria).
+
+  ## Decisions Beyond Prompt
+
+  - Followed the contracts file's actual 55 sections over the owner_notes' claimed 40; discrepancy surfaced for the orchestrator.
+  - Carried defect dispositions forward verbatim; no re-adjudication.
+  - Security-posture items stay 'port differently' per D009.
+
+  ## Proposed Conventions
+
+  - porting-bundle-is-the-compression-boundary (staged in CONVENTIONS.md under Pending proposals).
+
+  ## Carry-Forward
+
+  - porting-CF1 → reimplementation-spec: run the Strategic Alignment Hook before the spec phase.

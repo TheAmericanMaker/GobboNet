@@ -1,0 +1,188 @@
+project_name: GobboNet
+pipeline: workflow/pipeline-full-with-deep-audit.yaml
+current_phase: complete
+last_updated: "2026-08-18T22:02:00.277Z"
+schema_version: 1
+phases:
+  architecture:
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/architecture/architecture-map.md"
+      - "Validation: PASS"
+      - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+      - "Repo is a Windows-only, fully-local AI chatbot frontend: launch.bat (1973 lines) + fileserver.ps1 (1618) + hardware-probe.ps1 (1961) + identify-model.ps1 (477) + setup-lan.bat (178) + chat.html (906) + 24 numbered js files (~11k lines) + 15 numbered css files + default-characters.json."
+      - "Evidence basis is source inspection only: no runtime verification possible (Windows-only), no tests in repo, no CI. All five secondary outputs written with dated 2026-08-18 sections."
+      - "Key structural findings: linear numbered JS load order is a declared contract (no module system, global namespace); fileserver.ps1 is a single-threaded HttpListener accept loop with PowerShell runspaces for detached generation jobs; cross-process hot-swap coordination via .swap-in-progress lock file; per-origin browser storage silos patched by /state server sync."
+      - "CONVENTIONS.md and DECISIONS.md are still template skeletons (no promoted conventions, no decisions yet); closeouts/ contains only the framework feedback-pass file."
+    outputs_present:
+      - findings/architecture/architecture-map.md
+    open_questions:
+      -
+        id: q-installer-packaging
+        kind: needs-maintainer-decision
+        description: "GobboNetSetup.exe / launch.exe / launchLAN.exe are referenced by README but absent from the repo; installer internals (file layout, Start Menu registration, uninstaller behavior) are unknown."
+        deferred_reason: "No later phase in this pipeline can close it; requires the maintainer or the release artifacts."
+      -
+        id: q-refactor-plan
+        kind: needs-maintainer-decision
+        description: "Every js/css split header says 'see REFACTOR-PLAN.md before reordering' but the file is not in the repo."
+        deferred_reason: "Missing artifact; only the maintainer can supply it."
+      -
+        id: q-font-shipping
+        kind: needs-maintainer-decision
+        description: "fonts/atkinson-hyperlegible.woff2 is referenced by css/01-tokens.css but the fonts/ directory is absent from the repo; whether the installer ships it is unknown."
+        deferred_reason: "Not resolvable from source; cosmetic (documented fallback stack)."
+      -
+        id: q-accept-loop-scale
+        kind: needs-runtime-test
+        description: "fileserver.ps1's synchronous GetContext() accept loop handles one request at a time; behavior under multiple concurrent LAN clients is unmeasured."
+        deferred_reason: "Requires live load testing against the running Windows service."
+    carry_forward: []
+  defect-scan-mechanical:
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/defect-scan-mechanical/mechanical-defects.md"
+      - "Validation: PASS"
+      - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+      - "Primary output: .codecarto/findings/defect-scan-mechanical/mechanical-defects.md. Validation: PASS (7/7 criteria)."
+      - "17 findings total: Pass 1 (logic) 6, Pass 2 (error handling) 5, Pass 6 (config/environment) 6. Severity: 0 critical, 0 high, 8 medium, 9 low. No severity inflation: nothing found that breaks normal operation outright; the medium findings are silent degradations and unpinned downloads."
+      - "Routed items arch-CF3 and arch-CF4 closed: arch-CF3 -> findings P6-1 (unpinned engine/embed downloads), P6-2 (per-model CTX_SIZE/KV_CACHE_TYPE divergence), P6-3 (batch-only password check looseness); arch-CF4 -> findings P1-3 (logit bias broken) and P1-4 (Tekken-tokenizer patch)."
+      - "Evidence basis is source inspection only: no runtime verification possible (Windows-only), no tests in repo, no CI. Full reads: launch.bat, fileserver.ps1, identify-model.ps1, setup-lan.bat, js/11-search.js, js/23-card-code.js; partial reads of the other priority JS files and hardware-probe.ps1 header."
+      - "Three semantic items spotted and routed to defect-scan-semantic (mech-CF1..CF3): /state last-write-wins concurrency, request-size/static-exposure/API-key-logging security items, and the logit_bias request-shape contract check."
+    outputs_present:
+      - findings/defect-scan-mechanical/mechanical-defects.md
+    open_questions:
+      -
+        id: q-logit-bias-root-cause
+        kind: needs-runtime-test
+        description: "README declares logit bias (banned words) non-functional (README.md:264-265). The client path is fully wired (06-state-sync.js:725-793 builds a logit_bias map via /tokenize; 10-chat.js:161-166 merges it into the request body), so the breakage is either upstream (llama-server ignoring/not supporting logit_bias on the pinned build), a request-shape mismatch, or a tokenizer mismatch. Source alone cannot determine which."
+        deferred_reason: "Requires a live capture against the pinned llama-server build; the shape-mismatch hypothesis is also routed to defect-scan-semantic as mech-CF3."
+      -
+        id: q-tekken-patch-completeness
+        kind: needs-runtime-test
+        description: "README declares the Tekken-tokenizer patch 'may not be thorough enough' (README.md:267-268). The patch (built-in C++ templates for mistral-v3-tekken/mistral-v7, normalization of the unrecognized mistral-v7-tekken name) is present in identify-model.ps1:250-258, launch.bat:1335-1339, and fileserver.ps1:1050-1072, with the known delta documented (trailing space after [INST]/[SYSTEM_PROMPT], identify-model.ps1:246-249). Whether remaining misbehavior exists is unverifiable from source."
+        deferred_reason: "Requires running Tekken-tokenizer models against the pinned build and comparing output quality."
+    carry_forward: []
+  contracts:
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/contracts/behavioral-contracts.md"
+      - "Validation: PASS"
+      - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+      - "Primary output: .codecarto/findings/contracts/behavioral-contracts.md — 40 feature contracts across four surfaces (Web UI 24, CLI/launcher 6, HTTP API 6, storage/export formats 4), each with trigger/defaults/output/side effects/persisted state/error/recovery/owner/evidence level and file:line citations."
+      - "Routed item arch-CF2 closed: every README feature (README.md:286-357) has a contract; closure recorded in carry_forward_closures."
+      - "All four secondary outputs appended with dated 2026-08-18 contracts sections (public-surfaces, runtime-lifecycle, state-and-storage, config-model)."
+      - "Evidence basis is source inspection only: no runtime verification possible (Windows-only), no tests in repo, no CI. Full reads: 04-state, 07-prompt, 09-threads, 10-chat, 11-search, 19-extensions, 20-macros, 21-data, 22-scheduler, 24-boot, 02-model, default-characters.json; large partial reads of 03-generation, 05-persistence, 06-state-sync, 08-rag, 12-render, 13-dashboard, 15-cards, 16-card-io, 17-personas, 18-utils, 23-card-code, fileserver.ps1, launch.bat, chat.html; decoded the search-proxy encoded command (launch.bat:1608)."
+      - "Nine doc/code conflicts recorded in §Doc/Test Conflicts (search-privacy claim vs passthrough proxy; logit-bias README declaration vs wired path; lorebook auto-update claim; file-extension claim; vestigial reminderFrequency; default-off CoT/smart-limit; two stale in-code comments)."
+      - "Black-box acceptance list: 32 scenario rows. Validation: PASS (7/7 criteria)."
+    outputs_present:
+      - findings/contracts/behavioral-contracts.md
+    open_questions: []
+    carry_forward: []
+  protocols:
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/protocols/protocols-and-state.md"
+      - "Validation: PASS"
+      - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+      - "Primary output: .codecarto/findings/protocols/protocols-and-state.md — 18 protocol/event-stream entries (P1-P18), 5 state machines (SM1 job lifecycle, SM2 swap-status phase machine, SM3 state-sync + boot decision matrix, SM4 stream parser phases, SM5 jobsAvailable probe), persistent schema notes for 8 storage mechanisms, 19-row compatibility hazard table. Validation: PASS (6/6 criteria)."
+      - "Routed item arch-CF1 closed: SSE spool byte format + /llm/jobs chunk framing (chunk_b64, from/max offsets), /state JSON schema + mtime protocol, swap-status phase machine, GGUF metadata fields consumed, character-card V1/V2/V3 field mapping, and the Ollama web_search schema (proxy decoded from launch.bat:1608) are all extracted with file:line citations. Closure recorded in carry_forward_closures."
+      - "All four secondary outputs appended with dated 2026-08-18 protocols sections (public-surfaces, runtime-lifecycle, state-and-storage, config-model)."
+      - "Evidence basis is source inspection only: no runtime verification possible (Windows-only), no tests in repo, no CI. Full reads: fileserver.ps1 (1618), js/03-generation.js (1120), js/06-state-sync.js (854), js/05-persistence.js (667), js/16-card-io.js (737), js/11-search.js (222), identify-model.ps1 (477), js/24-boot.js (154); large partial reads of js/02-model.js, js/08-rag.js, js/10-chat.js, js/01-config.js, launch.bat; decoded the search-proxy encoded command (launch.bat:1608) in full."
+      - "Two new carry-forward entries routed to defect-scan-semantic: proto-CF1 (mid-generation 401 cancels the live job via the DELETE-ack path despite the error message promising re-attach) and proto-CF2 (lazy swap readiness promotion + orphaned .swap-in-progress lock blocks the monitor loop indefinitely)."
+      - "Four open questions recorded: q-ollama-api-version (carried from architecture, still open), q-websearch-response-fields (refines it), q-sse-done-marker, q-llama-server-diag-endpoints."
+    outputs_present:
+      - findings/protocols/protocols-and-state.md
+    open_questions:
+      -
+        id: q-ollama-api-version
+        kind: needs-runtime-test
+        description: "The search proxy forwards to https://ollama.com/api + path; the exact web_search request/response contract and its stability are not pinned in-repo. The protocols phase decoded the proxy (verbatim forwarder) and the client (request {query, max_results}, response {results:[{title,content,url}]}) — the upstream schema beyond that remains invisible."
+        deferred_reason: "Requires a live capture against Ollama's API."
+      -
+        id: q-websearch-response-fields
+        kind: needs-runtime-test
+        description: "Refines q-ollama-api-version: the client reads only title/content/url per result (11-search.js:184-190); whether the upstream returns additional fields and whether max_results is honored is unknown."
+        deferred_reason: "Proxy forwards verbatim; not visible in-repo."
+      -
+        id: q-sse-done-marker
+        kind: needs-runtime-test
+        description: "Whether the pinned llama-server build (b9294) terminates streams with 'data: [DONE]' or simply closes the connection. The client handles both (02-model.js:414, feeder flush on EOF), but the spooled transcript's exact terminal bytes are unverifiable from source."
+        deferred_reason: "Requires a live capture against the pinned build."
+      -
+        id: q-llama-server-diag-endpoints
+        kind: needs-runtime-test
+        description: "gobboDiag() calls GET /props and POST /apply-template (06-state-sync.js:589-600); their exact response shapes are not documented in-repo (diagnostic-only, not load-bearing)."
+        deferred_reason: "Requires a live call against the pinned build."
+    carry_forward: []
+  defect-scan-semantic:
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/defect-scan-semantic/semantic-defects.md"
+      - "Validation: PASS"
+      - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+      - "Primary output: .codecarto/findings/defect-scan-semantic/semantic-defects.md — 17 findings across the three semantic passes: Pass 3 (concurrency/resources) 2, Pass 4 (security/trust) 8, Pass 5 (API contract violations) 7. Severity: 0 critical, 0 high, 8 medium, 9 low. Validation: PASS (7/7 criteria)."
+      - "All nine routed carry-forward items closed and recorded in carry_forward_closures: arch-CF5 -> findings 4.1/4.6/4.7; mech-CF1 -> 3.1; mech-CF2 -> 4.3/4.4/4.5; mech-CF3 -> 5.2; contracts-CF1 -> 5.3; contracts-CF2 -> 5.4; contracts-CF3 -> 4.2; proto-CF1 -> 5.1; proto-CF2 -> 3.2. None required re-routing."
+      - "No severity inflation (consistent with D004): nothing found that breaks normal single-user operation outright; the medium findings are silent degradations, edge-case failures, and defense-in-depth gaps. The two security-posture items (plain-HTTP transport, unsandboxed card code/extensions) are assessed as documented design choices with residual risk, not accidental bugs."
+      - "Evidence basis is source inspection only, cross-checked against the contracts and protocols outputs as the pass-5 spec: no runtime verification possible (Windows-only), no tests in repo, no CI. Full reads: fileserver.ps1 (auth/state/jobs/swap/proxy/dispatch), js/03-generation.js transport, js/06-state-sync.js sync+logit-bias, js/11-search.js, js/02-model.js, js/08-rag.js context blocks, js/13-dashboard.js render+meter, js/18-utils.js escape/download, js/15-cards.js settings, js/04-state.js defaults, js/07-prompt.js lore, js/09-threads.js, js/10-chat.js request body, js/16-card-io.js, js/19-extensions.js, js/23-card-code.js, chat.html CONFIG modal, launch.bat monitor loop + metadata writers, README.md known-bugs + feature list."
+      - "Key new semantic findings beyond the routed items: wildcard CORS on every response (4.8, low); two stale in-code comments misdocumenting behavior (5.5, 5.6, low); README's .txt/.json file-save restriction is prompt-level only, not code-enforced (5.7, low)."
+      - "No new open questions: the phase's remaining unknowns (logit-bias runtime confirmation, accept-loop scale, Ollama upstream schema, SSE terminal bytes, diag endpoint shapes, Tekken completeness) are all already tracked as open questions from earlier phases and were re-checked against this phase's reading — none became answerable from source."
+    outputs_present:
+      - findings/defect-scan-semantic/semantic-defects.md
+    open_questions: []
+    carry_forward: []
+  porting:
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/porting/reverse-engineering-bundle.md"
+      - "Validation: PASS"
+      - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+      - "Primary output: .codecarto/findings/porting/reverse-engineering-bundle.md — the pipeline's intentional compression boundary for reimplementation-spec. Validation: PASS (7/7 criteria)."
+      - "Synthesis of all five upstream artifacts (architecture, contracts, protocols, mechanical defects, semantic defects): 8 concept-named layers, 55-row feature contract table (core 19 / important 22 / optional 12 / incidental 2), protocol/state notes (P1-P18, SM1-SM5, 8 persistence schemas), 28-row portability hazard table, 34-defect synthesis (fix before porting 12 / port differently 15 / leave behind 7), Source Index with deep-read triggers for all upstream artifacts and all five secondary outputs."
+      - "Routed item arch-CF6 closed: the architecture phase's portability hazard inventory (PowerShell HttpListener + runspaces, cmd batch orchestration, browser storage + Page Lifecycle APIs, mDNS/.local origin stability, Windows-only System32 tooling, AV-avoidance download patterns) is folded into the bundle's Portability Hazards section; closure recorded in carry_forward_closures."
+      - "All five secondary outputs appended with dated 2026-08-18 porting sections (public-surfaces, runtime-lifecycle, state-and-storage, build-and-deploy, config-model)."
+      - "Conflict surfaced, not hidden: the contracts phase's owner_notes/validation claim 40 contracts (24 Web UI) while behavioral-contracts.md contains 55 contract sections (39 Web UI + 6 CLI + 6 HTTP + 4 storage). The bundle follows the file (55 rows) and flags the discrepancy for the orchestrator."
+      - "All 10 open questions from earlier phases re-triaged against this phase's reading; none became answerable from source. They remain tracked under their originating phases; the bundle lists them for self-sufficiency. No new open questions from this phase."
+      - "Evidence basis: upstream findings only (source inspection by five prior phases with file:line citations). No runtime verification possible (Windows-only), no tests in repo, no CI. No new source reading was required — this is a synthesis phase."
+    outputs_present:
+      - findings/porting/reverse-engineering-bundle.md
+    open_questions: []
+    carry_forward: []
+  reimplementation-spec:
+    status: complete
+    owner_notes:
+      - "Completed via codecarto_complete."
+      - "Primary output: .codecarto/findings/reimplementation-spec/reimplementation-spec.md"
+      - "Validation: PASS"
+      - "Executed inline by the orchestrator (delegated execution strategy; the delegated executor for this phase died on a provider timeout before writing any artifact, so the orchestrator executed the phase itself from the porting bundle already in context)."
+      - "Primary output: .codecarto/findings/reimplementation-spec/reimplementation-spec.md — language-agnostic variant (user-confirmed via the Strategic Alignment Hook), 8 concept modules in 3 layers, 55 feature contracts restated with scope tiers, 16 wire formats + 5 state machines + 8 persistence schemas, 32 acceptance scenarios, 34/34 defects accounted for (27 designed-around, 7 left behind), 10 known unknowns."
+      - "Routed item porting-CF1 closed: language-agnostic selection recorded in the spec front-matter and validation block; closure recorded in carry_forward_closures."
+      - "Exactly one targeted deep read performed (behavioral-contracts.md §Black-Box Acceptance List), per the bundle's Source Index trigger; the bundle was self-sufficient for everything else."
+    outputs_present:
+      - findings/reimplementation-spec/reimplementation-spec.md
+    open_questions: []
+    carry_forward: []
+next_actions:
+  - "All phases complete. Review findings; post-pipeline skills: codecarto_list_skills / codecarto_skill."
+  - "10 open question(s) and 2 post-pipeline item(s) remain — apply resolutions with codecarto_amend (write scratch/amendments/<slug>.yaml from templates/amendment.yaml)."
+  - "Publish the finished spec to a library: codecarto_publish (create one with codecarto_library_init; see the library guide topic)."
+  - "Dashboard: .codecarto/dashboard.html (refreshed on completion and amendment; codecarto_dashboard re-renders on demand). Usage totals: codecarto_usage."
+post_pipeline:
+  -
+    id: post-lorebook-claim-ruling
+    kind: amendment
+    description: "README.md:317 claims lorebooks auto-update from conversations; code writes only thread.lore. Which side is intended needs the maintainer; the spec assumes the code is correct (defect 5.4)."
+    source_phase: reimplementation-spec
+    status: pending
+  -
+    id: post-search-privacy-ruling
+    kind: amendment
+    description: "README.md:342 claims search metadata/telemetry are stripped; the code strips nothing (defect 4.1). The spec instructs the port to implement stripping or correct the claim — the maintainer picks which."
+    source_phase: reimplementation-spec
+    status: pending

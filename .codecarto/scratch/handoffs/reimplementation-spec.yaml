@@ -1,0 +1,48 @@
+schema_version: 1
+phase_id: reimplementation-spec
+owner_notes:
+  - "Executed inline by the orchestrator (delegated execution strategy; the delegated executor for this phase died on a provider timeout before writing any artifact, so the orchestrator executed the phase itself from the porting bundle already in context)."
+  - "Primary output: .codecarto/findings/reimplementation-spec/reimplementation-spec.md — language-agnostic variant (user-confirmed via the Strategic Alignment Hook), 8 concept modules in 3 layers, 55 feature contracts restated with scope tiers, 16 wire formats + 5 state machines + 8 persistence schemas, 32 acceptance scenarios, 34/34 defects accounted for (27 designed-around, 7 left behind), 10 known unknowns."
+  - "Routed item porting-CF1 closed: language-agnostic selection recorded in the spec front-matter and validation block; closure recorded in carry_forward_closures."
+  - "Exactly one targeted deep read performed (behavioral-contracts.md §Black-Box Acceptance List), per the bundle's Source Index trigger; the bundle was self-sufficient for everything else."
+open_questions: []
+carry_forward: []
+carry_forward_closures:
+  - porting-CF1
+open_question_closures: []
+post_pipeline:
+  - id: post-lorebook-claim-ruling
+    kind: amendment
+    description: README.md:317 claims lorebooks auto-update from conversations; code writes only thread.lore. Which side is intended needs the maintainer; the spec assumes the code is correct (defect 5.4).
+  - id: post-search-privacy-ruling
+    kind: amendment
+    description: README.md:342 claims search metadata/telemetry are stripped; the code strips nothing (defect 4.1). The spec instructs the port to implement stripping or correct the claim — the maintainer picks which.
+decisions:
+  - "Language-agnostic spec variant selected by the user via the Strategic Alignment Hook; no target stack, project identity, or scope cuts are pre-locked (closes porting-CF1)."
+  - "The spec's defect accounting carries the two defect reports' dispositions verbatim (fix before porting / port differently / leave behind) and does not re-adjudicate severities or actions (extends the porting phase's decision)."
+  - "The two security-posture items (plain-HTTP transport, unsandboxed card code/extensions) are instructed as conscious re-decisions for the port (per D009), not silently inherited or silently dropped."
+proposed_conventions: []
+closeout_summary: "Reimplementation-spec phase complete: language-agnostic build plan and acceptance spec synthesized from the porting bundle (8 modules, 55 behaviors, 32 acceptance scenarios, 34/34 defects accounted for); porting-CF1 closed; validation PASS (8/8)."
+closeout_content: |-
+  # Closeout — reimplementation-spec
+
+  ## Summary
+
+  - Final phase of the full-with-deep-audit pipeline. Language-agnostic variant, user-confirmed.
+  - Primary output: findings/reimplementation-spec/reimplementation-spec.md (40 KB).
+  - The delegated executor for this phase died on a provider timeout (150s API timeout after 3 retries) before writing any artifact; the orchestrator executed the phase inline from the porting bundle already in context. No artifact was lost — the phase had not started writing.
+
+  ## Decisions Beyond Prompt
+
+  - Language-agnostic selection (user-confirmed) recorded in front-matter and validation block.
+  - Defect dispositions carried verbatim from the two defect reports; no re-adjudication.
+  - Security-posture items framed as conscious re-decisions for the port (D009).
+
+  ## Proposed Conventions
+
+  - None.
+
+  ## Post-Pipeline
+
+  - post-lorebook-claim-ruling (amendment): maintainer ruling on the lorebook auto-update claim.
+  - post-search-privacy-ruling (amendment): maintainer ruling on the search-privacy claim.

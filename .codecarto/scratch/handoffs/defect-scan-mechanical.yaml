@@ -1,0 +1,78 @@
+schema_version: 1
+phase_id: defect-scan-mechanical
+owner_notes:
+  - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+  - "Primary output: .codecarto/findings/defect-scan-mechanical/mechanical-defects.md. Validation: PASS (7/7 criteria)."
+  - "17 findings total: Pass 1 (logic) 6, Pass 2 (error handling) 5, Pass 6 (config/environment) 6. Severity: 0 critical, 0 high, 8 medium, 9 low. No severity inflation: nothing found that breaks normal operation outright; the medium findings are silent degradations and unpinned downloads."
+  - "Routed items arch-CF3 and arch-CF4 closed: arch-CF3 -> findings P6-1 (unpinned engine/embed downloads), P6-2 (per-model CTX_SIZE/KV_CACHE_TYPE divergence), P6-3 (batch-only password check looseness); arch-CF4 -> findings P1-3 (logit bias broken) and P1-4 (Tekken-tokenizer patch)."
+  - "Evidence basis is source inspection only: no runtime verification possible (Windows-only), no tests in repo, no CI. Full reads: launch.bat, fileserver.ps1, identify-model.ps1, setup-lan.bat, js/11-search.js, js/23-card-code.js; partial reads of the other priority JS files and hardware-probe.ps1 header."
+  - "Three semantic items spotted and routed to defect-scan-semantic (mech-CF1..CF3): /state last-write-wins concurrency, request-size/static-exposure/API-key-logging security items, and the logit_bias request-shape contract check."
+open_questions:
+  - id: q-logit-bias-root-cause
+    kind: needs-runtime-test
+    description: "README declares logit bias (banned words) non-functional (README.md:264-265). The client path is fully wired (06-state-sync.js:725-793 builds a logit_bias map via /tokenize; 10-chat.js:161-166 merges it into the request body), so the breakage is either upstream (llama-server ignoring/not supporting logit_bias on the pinned build), a request-shape mismatch, or a tokenizer mismatch. Source alone cannot determine which."
+    deferred_reason: "Requires a live capture against the pinned llama-server build; the shape-mismatch hypothesis is also routed to defect-scan-semantic as mech-CF3."
+  - id: q-tekken-patch-completeness
+    kind: needs-runtime-test
+    description: "README declares the Tekken-tokenizer patch 'may not be thorough enough' (README.md:267-268). The patch (built-in C++ templates for mistral-v3-tekken/mistral-v7, normalization of the unrecognized mistral-v7-tekken name) is present in identify-model.ps1:250-258, launch.bat:1335-1339, and fileserver.ps1:1050-1072, with the known delta documented (trailing space after [INST]/[SYSTEM_PROMPT], identify-model.ps1:246-249). Whether remaining misbehavior exists is unverifiable from source."
+    deferred_reason: "Requires running Tekken-tokenizer models against the pinned build and comparing output quality."
+carry_forward:
+  - id: mech-CF1
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "/state POST/PUT is unconditional last-write-wins with no server-side conflict check or locking (fileserver.ps1:545-564). Concurrent writes from two devices (phone + desktop) silently clobber each other; the client-side mtime protocol (06-state-sync.js) is advisory only. Assess as a concurrency defect under pass 3."
+    deferred_reason: "Concurrency is pass 3 of the semantic scan; the mechanical pass only records the hazard."
+  - id: mech-CF2
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "Security/trust items spotted during the mechanical pass: (a) no request-body size caps on /state POST/PUT (fileserver.ps1:546-547) or /llm/jobs POST (fileserver.ps1:794-795); (b) static serving exposes every non-dotfile under the project root to authenticated clients, including models/*.gguf (fileserver.ps1:363-385, 1597-1608); (c) webSearch logs the API key prefix to the console (11-search.js:26) — folds into arch-CF5's search-privacy item."
+    deferred_reason: "Security and trust boundaries are pass 4 of the semantic scan."
+  - id: mech-CF3
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "The client's logit_bias request shape (map of token-id strings, 06-state-sync.js:774) and its /tokenize usage (06-state-sync.js:734) should be compared against the contracts phase's llama-server API documentation. A shape mismatch is the likely root cause of the README-declared broken logit bias (mechanical finding P1-3, open question q-logit-bias-root-cause)."
+    deferred_reason: "Contract drift is pass 5 of the semantic scan, which runs after contracts/protocols; the mechanical pass cannot rule on API conformance."
+carry_forward_closures:
+  - arch-CF3
+  - arch-CF4
+open_question_closures: []
+post_pipeline: []
+decisions:
+  - "Mechanical scan treated the README's own known-bugs section as observed-fact evidence for the existence of the logit-bias and Tekken defects, with root cause and patch completeness recorded as open questions rather than guessed."
+  - "No critical or high severities were assigned: every finding is a silent degradation, latent risk, or config hazard; nothing found breaks normal operation outright. Severity was deliberately not inflated."
+proposed_conventions:
+  - name: health-probe-must-verify-identity
+    rule: "Any 'is my service already running' probe must verify the responder's identity (expected status code and body shape), not merely that something answered; substring matches like 'ok' are not identity checks."
+    evidence: "launch.bat:1951-1953, 1965-1967, 1235-1238, 1842 (finding P1-2); fileserver.ps1:1636-1640 (finding P6-4)."
+  - name: process-kill-must-scope-by-role
+    rule: "Killing or restarting a process by bare image name must account for every role that image plays; a shared binary (llama-server.exe serving both chat and embeddings) needs role-scoped targeting or coordinated respawn."
+    evidence: "launch.bat:1865, fileserver.ps1:1125 vs launch.bat:1571 (finding P1-1)."
+closeout_summary: "Mechanical defect scan complete: 17 findings across passes 1/2/6 (0 critical, 0 high, 8 medium, 9 low), arch-CF3 and arch-CF4 closed, 3 semantic items routed to defect-scan-semantic, validation PASS."
+closeout_content: |-
+  # Closeout — defect-scan-mechanical
+
+  ## Summary
+
+  - Ran passes 1 (logic/correctness), 2 (error handling), 6 (config/environment) over the GobboNet source per the phase skill, with the architecture map as the prioritization guide.
+  - 17 findings: 6 pass-1, 5 pass-2, 6 pass-6. Severity: 0 critical, 0 high, 8 medium, 9 low. Every finding carries file:line evidence, an evidence level, and a porting action.
+  - Closed routed items: arch-CF3 (config hazards -> P6-1, P6-2, P6-3) and arch-CF4 (README known bugs -> P1-3, P1-4).
+  - Routed to defect-scan-semantic: mech-CF1 (/state last-write-wins concurrency), mech-CF2 (request-size caps, static exposure of models/, API-key console logging), mech-CF3 (logit_bias request-shape contract check).
+  - Open questions: q-logit-bias-root-cause, q-tekken-patch-completeness (both needs-runtime-test).
+
+  ## Top findings
+
+  1. P1-1 (medium): hot-swap and crash-restart kill the embedding server by bare image name and never restart it — RAG silently degrades after every swap.
+  2. P1-2 (medium): any-response/substring health probes misdetect foreign services (Ollama) as healthy llama-server.
+  3. P6-1 (medium): engine and embedding downloads ship unpinned (empty SHA-256).
+  4. P6-2 (medium): per-model CTX_SIZE/KV_CACHE_TYPE overrides exist only in the download menu; hot-swaps and later launches ignore them.
+  5. P1-3/P1-4 (medium): README-declared broken logit bias and possibly-incomplete Tekken patch, located and classified.
+
+  ## Decisions Beyond Prompt
+
+  - README known-bugs treated as observed-fact evidence for defect existence; root cause and patch completeness recorded as open questions instead of guessed.
+  - No critical/high severities assigned — nothing found breaks normal operation outright; severity deliberately not inflated.
+
+  ## Proposed Conventions
+
+  - health-probe-must-verify-identity
+  - process-kill-must-scope-by-role

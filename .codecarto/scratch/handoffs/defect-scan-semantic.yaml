@@ -1,0 +1,68 @@
+schema_version: 1
+phase_id: defect-scan-semantic
+owner_notes:
+  - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+  - "Primary output: .codecarto/findings/defect-scan-semantic/semantic-defects.md — 17 findings across the three semantic passes: Pass 3 (concurrency/resources) 2, Pass 4 (security/trust) 8, Pass 5 (API contract violations) 7. Severity: 0 critical, 0 high, 8 medium, 9 low. Validation: PASS (7/7 criteria)."
+  - "All nine routed carry-forward items closed and recorded in carry_forward_closures: arch-CF5 -> findings 4.1/4.6/4.7; mech-CF1 -> 3.1; mech-CF2 -> 4.3/4.4/4.5; mech-CF3 -> 5.2; contracts-CF1 -> 5.3; contracts-CF2 -> 5.4; contracts-CF3 -> 4.2; proto-CF1 -> 5.1; proto-CF2 -> 3.2. None required re-routing."
+  - "No severity inflation (consistent with D004): nothing found that breaks normal single-user operation outright; the medium findings are silent degradations, edge-case failures, and defense-in-depth gaps. The two security-posture items (plain-HTTP transport, unsandboxed card code/extensions) are assessed as documented design choices with residual risk, not accidental bugs."
+  - "Evidence basis is source inspection only, cross-checked against the contracts and protocols outputs as the pass-5 spec: no runtime verification possible (Windows-only), no tests in repo, no CI. Full reads: fileserver.ps1 (auth/state/jobs/swap/proxy/dispatch), js/03-generation.js transport, js/06-state-sync.js sync+logit-bias, js/11-search.js, js/02-model.js, js/08-rag.js context blocks, js/13-dashboard.js render+meter, js/18-utils.js escape/download, js/15-cards.js settings, js/04-state.js defaults, js/07-prompt.js lore, js/09-threads.js, js/10-chat.js request body, js/16-card-io.js, js/19-extensions.js, js/23-card-code.js, chat.html CONFIG modal, launch.bat monitor loop + metadata writers, README.md known-bugs + feature list."
+  - "Key new semantic findings beyond the routed items: wildcard CORS on every response (4.8, low); two stale in-code comments misdocumenting behavior (5.5, 5.6, low); README's .txt/.json file-save restriction is prompt-level only, not code-enforced (5.7, low)."
+  - "No new open questions: the phase's remaining unknowns (logit-bias runtime confirmation, accept-loop scale, Ollama upstream schema, SSE terminal bytes, diag endpoint shapes, Tekken completeness) are all already tracked as open questions from earlier phases and were re-checked against this phase's reading — none became answerable from source."
+open_questions: []
+carry_forward: []
+carry_forward_closures:
+  - arch-CF5
+  - mech-CF1
+  - mech-CF2
+  - mech-CF3
+  - contracts-CF1
+  - contracts-CF2
+  - contracts-CF3
+  - proto-CF1
+  - proto-CF2
+open_question_closures: []
+post_pipeline: []
+decisions:
+  - "The two security-posture items (plain-HTTP LAN transport; unsandboxed per-card JS and extensions) are assessed as documented design choices with residual risk rather than accidental bugs, because the source itself discloses the tradeoffs and ships deliberate mitigations (12h TTL, fingerprint binding, imported-code opt-in, wrapped hooks); they are tagged 'port differently' so a port re-makes the choice consciously."
+  - "The logit_bias shape mismatch (map of token-id strings vs llama-server's OpenAI-compatible array-of-{id,bias}) is recorded as a strong-inference root cause for the README-declared broken banned-words feature (P1-3), not an observed fact; definitive confirmation stays with q-logit-bias-root-cause (needs-runtime-test)."
+  - "No critical or high severities were assigned in the semantic scan: every finding is a silent degradation, edge-case failure, defense-in-depth gap, or documented design choice; severity was deliberately not inflated (extends D004 to the semantic pass)."
+proposed_conventions:
+  - name: server-side-write-conflict-check
+    rule: "Any multi-writer shared state endpoint must enforce a server-side conflict check (compare-and-swap on a version stamp) rather than relying on client-side advisory protocols; last-write-wins without a server-side guard silently destroys concurrent edits."
+    evidence: "Finding 3.1: /state POST/PUT writes unconditionally (fileserver.ps1:545-564) while the client mtime protocol (06-state-sync.js) is advisory only; the boot decision matrix can only detect the clobber after the fact."
+  - name: error-message-must-match-recovery-path
+    rule: "An error message that promises a recovery action must be backed by a code path that can actually perform it; if the code forecloses the promised recovery, either change the message or change the path."
+    evidence: "Finding 5.1: the 401 mid-generation message promises 'reload the page and sign in to re-attach' but the same code path DELETEs the job, cancelling the live generation (03-generation.js:452-465, fileserver.ps1:872-880)."
+closeout_summary: "Semantic defect scan complete: 17 findings across passes 3 (2), 4 (8), and 5 (7) — 0 critical, 0 high, 8 medium, 9 low — each with location, severity, evidence level, and action; pass-5 findings cite their contract/protocol references. All nine routed carry-forward items closed (arch-CF5, mech-CF1, mech-CF2, mech-CF3, contracts-CF1, contracts-CF2, contracts-CF3, proto-CF1, proto-CF2) with none re-routed. Security-posture items assessed as documented design choices with residual risk. Validation: PASS (7/7 criteria)."
+closeout_content: |-
+  # Closeout — defect-scan-semantic
+
+  ## Summary
+
+  - Ran the three semantic passes sequentially against the contracts and protocols outputs as the spec: Pass 3 (concurrency and resources), Pass 4 (security and trust boundaries), Pass 5 (API contract violations).
+  - 17 findings total: Pass 3 → 2 (both medium); Pass 4 → 8 (4 medium, 4 low); Pass 5 → 7 (2 medium, 5 low). No critical or high severities — nothing found that breaks normal single-user operation outright.
+  - Top findings: the false search-privacy claim (4.1), /state last-write-wins clobber (3.1), the mid-generation 401 cancel-with-misleading-message (5.1), the logit_bias shape mismatch (5.2, strong inference), and the unthrottled /login brute-force surface (4.2).
+
+  ## Routed item closure
+
+  - arch-CF5 closed: search-privacy claim assessed as a false doc claim (4.1, medium, fix before porting); plain-HTTP transport (4.6) and unsandboxed card code/extensions (4.7) assessed as documented design choices with residual risk (low, port differently).
+  - mech-CF1 closed: /state unconditional last-write-wins assessed as a concurrency defect (3.1, medium, observed fact, port differently).
+  - mech-CF2 closed: (a) no body-size caps on /state and /llm/jobs POST (4.3, medium); (b) static serving exposes models/*.gguf and the product scripts to any authenticated client (4.4, medium); (c) API-key prefix console log (4.5, low) — all under pass 4.
+  - mech-CF3 closed: logit_bias map-of-string-keys vs llama-server's OpenAI-compatible array-of-{id,bias} shape mismatch recorded as the likely root cause of P1-3 (5.2, medium, strong inference); runtime confirmation remains q-logit-bias-root-cause.
+  - contracts-CF1 closed: vestigial reminderFrequency CONFIG control assessed as a UI-contract violation (5.3, low, port differently).
+  - contracts-CF2 closed: README.md:317 lorebook auto-update claim vs thread.lore-only compression assessed as doc/behavior drift (5.4, low, fix before porting); maintainer ruling on which side is intended stays post-pipeline (post-lorebook-claim-ruling).
+  - contracts-CF3 closed: no rate limiting or lockout on POST /login assessed under pass 4 (4.2, medium, fix before porting).
+  - proto-CF1 closed: mid-generation 401 → terminal classification → DELETE-ack cancels the live job while the message promises re-attach, assessed as a pass-5 error-behavior contract violation (5.1, medium, fix before porting).
+  - proto-CF2 closed: lazy swap readiness promotion + orphaned .swap-in-progress lock standing the monitor loop down indefinitely, assessed as a pass-3 concurrency/lifecycle defect (3.2, medium, fix before porting).
+
+  ## Decisions Beyond Prompt
+
+  - Security-posture items (plain HTTP, unsandboxed code) are design choices documented in the source with deliberate mitigations — assessed as residual risk, not accidental bugs; tagged 'port differently' so a port re-makes the choice consciously.
+  - The logit_bias shape mismatch is recorded as strong inference, not observed fact; definitive confirmation stays with q-logit-bias-root-cause.
+  - No critical/high severities assigned; severity deliberately not inflated (extends D004).
+
+  ## Coverage
+
+  - Inspected: fileserver.ps1 (auth, static resolution, proxy, /state, jobs, swap, dispatch loop), js/03-generation.js transport, js/06-state-sync.js, js/11-search.js, js/02-model.js, js/08-rag.js context blocks, js/13-dashboard.js, js/18-utils.js, js/15-cards.js, js/04-state.js, js/07-prompt.js, js/09-threads.js, js/10-chat.js, js/16-card-io.js, js/19-extensions.js, js/23-card-code.js, chat.html CONFIG modal, launch.bat monitor loop + metadata writers, README.md known-bugs + feature list; upstream findings read in full as the spec basis.
+  - Skipped: css/*, hardware-probe.ps1, identify-model.ps1 bodies, setup-lan.bat, js/14-scroll, 17-personas, 20-macros, 21-data, 22-scheduler, 24-boot bodies, thinking-parser internals, IDB migration bodies, retriever internals, launch.bat download-menu bodies, Build-LaunchScript internals — covered by earlier phases.
+  - Evidence basis: source inspection only (Windows-only, no runtime verification possible). Disposition: COMPLETE.

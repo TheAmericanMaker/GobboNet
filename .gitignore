@@ -29,3 +29,13 @@ active-model.json
 .embed-launch.cmd
 
 .gobbonet-port
+
+# Generation job spool — holds model reply transcripts
+.jobs/
+
+# Egress-verification harness artifacts (.codecarto/findings/runtime-egress-verification)
+.codecarto/findings/runtime-egress-verification/harness/capture/
+.codecarto/findings/runtime-egress-verification/harness/search-relay.ps1
+.codecarto/findings/runtime-egress-verification/harness/run-relay.ps1
+__pycache__/
+.codecarto/workflow/.usage.local.yaml

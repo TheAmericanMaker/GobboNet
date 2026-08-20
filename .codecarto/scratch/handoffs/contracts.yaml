@@ -1,0 +1,76 @@
+schema_version: 1
+phase_id: contracts
+owner_notes:
+  - "Executed by a delegated subagent in an orchestrated run (delegated execution strategy; orchestrator thread holds cross-phase duties)."
+  - "Primary output: .codecarto/findings/contracts/behavioral-contracts.md — 40 feature contracts across four surfaces (Web UI 24, CLI/launcher 6, HTTP API 6, storage/export formats 4), each with trigger/defaults/output/side effects/persisted state/error/recovery/owner/evidence level and file:line citations."
+  - "Routed item arch-CF2 closed: every README feature (README.md:286-357) has a contract; closure recorded in carry_forward_closures."
+  - "All four secondary outputs appended with dated 2026-08-18 contracts sections (public-surfaces, runtime-lifecycle, state-and-storage, config-model)."
+  - "Evidence basis is source inspection only: no runtime verification possible (Windows-only), no tests in repo, no CI. Full reads: 04-state, 07-prompt, 09-threads, 10-chat, 11-search, 19-extensions, 20-macros, 21-data, 22-scheduler, 24-boot, 02-model, default-characters.json; large partial reads of 03-generation, 05-persistence, 06-state-sync, 08-rag, 12-render, 13-dashboard, 15-cards, 16-card-io, 17-personas, 18-utils, 23-card-code, fileserver.ps1, launch.bat, chat.html; decoded the search-proxy encoded command (launch.bat:1608)."
+  - "Nine doc/code conflicts recorded in §Doc/Test Conflicts (search-privacy claim vs passthrough proxy; logit-bias README declaration vs wired path; lorebook auto-update claim; file-extension claim; vestigial reminderFrequency; default-off CoT/smart-limit; two stale in-code comments)."
+  - "Black-box acceptance list: 32 scenario rows. Validation: PASS (7/7 criteria)."
+open_questions: []
+carry_forward:
+  - id: contracts-CF1
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "The CONFIG UI exposes 'Reminder every N msgs' (reminderFrequency, chat.html:165-166, 04-state.js:59) but no code path consumes it since personality became a persistent block (08-rag.js:912, 13-dashboard.js:711). Assess as a UI-contract violation under pass 5."
+    deferred_reason: "Contract-drift assessment is pass 5 of the semantic scan; the contracts phase records behavior, it doesn't rule on defects."
+  - id: contracts-CF2
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "README.md:317 claims 'Lorebook + RAG lorebook work together to auto-update new information from extended conversations,' but compression writes only thread.lore; card lorebooks are never auto-updated (07-prompt.js:262-268, 09-threads.js:172-175). Assess as a doc/behavior drift under pass 5."
+    deferred_reason: "Same rubric as contracts-CF1; final resolution (which side is right) may need the maintainer — tracked post-pipeline as post-lorebook-claim-ruling."
+  - id: contracts-CF3
+    kind: defer-to-phase
+    target_phase: defect-scan-semantic
+    description: "No rate limiting or lockout on POST /login (fileserver.ps1:1497-1531): an on-LAN attacker can brute-force the shared password with no backoff. Assess under pass 4 (security and trust)."
+    deferred_reason: "Security posture assessment is pass 4 of the semantic scan; folds into arch-CF5's security item."
+carry_forward_closures:
+  - arch-CF2
+open_question_closures: []
+post_pipeline:
+  - id: post-lorebook-claim-ruling
+    kind: amendment
+    description: "README.md:317's lorebook auto-update claim vs the code (compression writes only thread.lore) needs a maintainer ruling on which side is the intended behavior; contracts-CF2 records the drift for the semantic scan, but only the maintainer can say whether the README or the code is wrong."
+proposed_conventions: []
+decisions:
+  - "Contracts phase treated the README feature list (README.md:286-357) as the primary contract source and the code as the arbiter of defaults/error behavior, per the phase SKILL.md's source-priority order; doc/code conflicts are recorded explicitly rather than silently resolved."
+  - "The search-privacy claim (README.md:342) vs the passthrough implementation is recorded as a doc/code conflict in the contracts output and left for defect-scan-semantic (arch-CF5) to assess; the contracts phase does not rule on security posture."
+closeout_summary: "Contracts phase complete: 40 user-visible behavior contracts across four surfaces (web UI, CLI/launcher, HTTP API, storage/export formats), security and authorization model, configuration model, ownership mapping, 32-row black-box acceptance list, and 9 doc/code conflicts. Routed item arch-CF2 closed. All four secondary outputs appended. Validation PASS (7/7 criteria). Three new carry-forward entries routed to defect-scan-semantic (contracts-CF1..CF3); one post-pipeline maintainer ruling (post-lorebook-claim-ruling)."
+closeout_content: |-
+  # Closeout — contracts
+
+  ## Summary
+
+  - Extracted 40 behavioral contracts for GobboNet, split by surface: Web UI (24), CLI/launcher (6), HTTP API (6), storage/export formats (4). Every contract carries trigger, defaults, observable output, side effects, persisted state, error behavior, retry/recovery, owner (layer/package), and an evidence level with file:line citations.
+  - Closed arch-CF2: every feature in the README feature list (README.md:286-357) now has a contract — streaming, stop, reroll, edit, branching, lore compression, macros (built-in/custom/auto-continue), scheduler, hot-swap, data export/import/purge, extensions, card code, RAG, personas, web search, and the rest.
+  - Security model documented: salted SHA-256 password → HttpOnly session cookie (12h TTL, no Secure flag by design) bound to a client fingerprint; loopback-only upstreams; unsandboxed card code/extensions by design; the README search-privacy claim vs the passthrough proxy recorded as a conflict (arch-CF5 context).
+  - Configuration model documented: launch.bat header vars → download-menu overrides (session-only) → identify-model.ps1 ground truth → GEMMA_* env handoff → browser DEFAULT_SETTINGS/per-card fields; tokenLimit vs CTX_SIZE split; vestigial reminderFrequency flagged.
+  - Black-box acceptance list: 32 scenario rows a reimplementation can run without the source.
+  - Nine doc/code conflicts recorded explicitly (search privacy, logit bias, lorebook auto-update, file extensions, reminderFrequency, default-off features, two stale comments).
+
+  ## Coverage
+
+  - Inspected: README (full), chat.html (modals/settings), 24 js files (full or large partial reads), fileserver.ps1 (auth/state/jobs/swap/proxy/static/dispatch), launch.bat (config/password/menu/launch/monitor), default-characters.json, decoded search-proxy command.
+  - Skipped: hardware-probe detection layers, identify-model family tables, css bodies, render/parser internals, download-menu bodies — rendering/formatting details or already covered by earlier phases; wire formats remain protocols-phase territory (arch-CF1).
+  - Evidence basis: source inspection only. No runtime verification (Windows-only), no tests, no CI.
+  - Disposition: COMPLETE.
+
+  ## Open Questions
+
+  - None new. Existing questions (q-installer-packaging, q-refactor-plan, q-font-shipping, q-accept-loop-scale, q-ollama-api-version, q-logit-bias-root-cause, q-tekken-patch-completeness) were re-checked against contracts-phase reading and none became answerable from source.
+
+  ## Carry-Forward
+
+  - contracts-CF1 → defect-scan-semantic (vestigial reminderFrequency UI)
+  - contracts-CF2 → defect-scan-semantic (lorebook auto-update claim vs code)
+  - contracts-CF3 → defect-scan-semantic (no login rate limiting)
+
+  ## Post-Pipeline
+
+  - post-lorebook-claim-ruling (maintainer ruling on README.md:317 vs code)
+
+  ## Decisions Beyond Prompt
+
+  - README feature list treated as the primary contract source; code as arbiter of defaults/error behavior; conflicts recorded, not silently resolved.
+  - Security posture assessment (search-privacy claim) left to defect-scan-semantic; contracts records the conflict only.
