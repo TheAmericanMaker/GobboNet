@@ -11,19 +11,19 @@
 ## Scan Context
 
 - **Source:** `../../../` (repository root), unmodified working copy at `5524fd4` (v1.5.1-era)
-- **Version caveat:** upstream has since moved to `f1b9f50` (v1.5.8), adding ~2,025 lines across 22
-  files including `SECURITY.md`, +405 in `fileserver.ps1` and +268 in `chat.html`. Re-checked
-  against that tree: the search relay's encoded command is **byte-identical** (md5 `3fed3c1f5730`),
-  so R4 still describes what ships; the three README lines in R4/R5 are unchanged; `.jobs/` is still
-  unignored (R7); `logit_bias` construction is unchanged. **Not re-measured:** the client-side
-  results R1, R2, R3 and R8 were captured on the older tree. Treat them as verified for v1.5.1-era
-  and unconfirmed for v1.5.8 until the harness is re-run.
-- **Static references:** `findings/defect-scan-semantic/semantic-defects.md`,
-  `findings/defect-scan-mechanical/mechanical-defects.md`
-- **Date:** 2026-08-19
-- **Host:** Fedora Linux 7.1.8, Chromium 148, PowerShell 7.6.5 (linux-x64)
-- **Claims under test:** `README.md:3`, `README.md:174`, `README.md:195`, `README.md:342`,
-  `README.md:98`, and the in-product banner "LLAMA.CPP — ZERO TELEMETRY, FULLY OFFLINE"
+- **Re-verified against v1.5.8** (`f1b9f50`) on 2026-08-20. Every finding below was reproduced on
+  the current tree with the client confirming `CHAT_HTML_BUILD = '1.5.8-strict-health-monitor'` at
+  runtime. Results are unchanged: cold boot 7 app calls / **0 external**; chat send reaches only
+  `POST /llm/jobs` and `PUT /state`; the reply's remote markdown image still produces **0 `<img>`
+  tags and 0 remote fetches**; search still sends the full user message verbatim with the user's
+  `Authorization` key; the extension loader still fetches arbitrary public-internet URLs
+  (confirmed by interceptor and Performance API independently). 62-second soak: 29 app calls, 12
+  local health polls, no beacons, **0 external**. The relay's encoded command is byte-identical to
+  the audited version (md5 `3fed3c1f5730`), so R4's capture stands without re-running the relay.
+- **Also observed at v1.5.8:** two model-probe endpoints not present in the earlier tree
+  (`GET /v1/models`, `GET /models`), both loopback; a new `/perf` endpoint exists in the client
+  (`02-model.js:501`); and `GET /fonts/atkinson-hyperlegible.woff2` still **404s** in a git clone
+  (`css/01-tokens.css:30` references it, `fonts/` is absent) — see the open-question section.
 - **Scope:** what crosses the network boundary during boot, chat, idle, render, search,
   and extension load. Not a correctness or performance pass.
 
@@ -56,6 +56,14 @@ that the environment permits egress at all. Both were established before any fin
 | Four egress APIs fired at a documentation-reserved domain | all four caught and flagged non-local |
 | External image load from the page | **loaded** — real traffic left and returned |
 | `no-cors` fetch to an external host | opaque response — request genuinely went out |
+
+**Cache caveat, learned the hard way.** The first attempt at this re-run silently tested the
+*old* JavaScript: the browser served cached `js/*.js` from a previous session against freshly-changed
+`chat.html`, and the harness request log showed zero `/js/` fetches. It was caught only by asserting
+`CHAT_HTML_BUILD` at runtime. The harness now sends `Cache-Control: no-store` on every response and
+rewrites `js/`+`css/` references with an mtime-derived `?v=` token, so a warm cache cannot win.
+**Always assert the build stamp before trusting a result** — a clean egress report from the wrong
+build is worse than no report.
 
 **Instrument caveat (important for anyone repeating this):** the browser devtools network
 log did *not* record those four canaries, though it logged their loopback reports. It

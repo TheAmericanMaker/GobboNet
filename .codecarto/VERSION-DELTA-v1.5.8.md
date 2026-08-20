@@ -66,7 +66,10 @@ The 2,025 new lines have **not** been scanned for new defects. Unscanned surface
 - dynamic port allocation — `GEMMA_LISTEN_PORT` → `.gobbonet-port` → `9066` (`fileserver.ps1:62-90`)
 - `fileserver.ps1` +405, `launch.bat` +368, `chat.html` +268, `js/07-prompt.js` +263,
   `js/02-model.js` +174, `setup-lan.bat` +191
-- the client-side egress results (R1, R2, R3, R8) were measured on `5524fd4` and not re-measured
+- ~~the client-side egress results (R1, R2, R3, R8) were measured on `5524fd4` and not re-measured~~
+  **CLOSED 2026-08-20** — the harness was re-run against `f1b9f50` with the build stamp asserted at
+  runtime (`1.5.8-strict-health-monitor`). All client-side findings reproduce unchanged. See
+  `findings/runtime-egress-verification/egress-verification.md`.
 
 A full re-run of `defect-scan-mechanical` and `defect-scan-semantic` against `f1b9f50` would cover
 that surface and is the correct next step if these findings are going to be relied on as current.

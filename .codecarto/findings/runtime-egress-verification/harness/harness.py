@@ -6,7 +6,7 @@ HTTP request the app makes (method, path, headers, body) to requests.jsonl.
 Nothing is proxied anywhere. Any attempt to reach a non-local host by the
 browser will therefore be visible in the browser network log, not here.
 """
-import json, os, sys, time, threading
+import json, os, re, sys, time, threading
 from http.server import ThreadingHTTPServer, SimpleHTTPRequestHandler
 
 ROOT = os.environ.get("GOBBONET_ROOT") or os.path.abspath(
@@ -30,6 +30,14 @@ class H(SimpleHTTPRequestHandler):
 
     def log_message(self, *a):  # silence stderr noise
         pass
+
+    def end_headers(self):
+        # Every response is no-store. Without this the browser happily serves
+        # cached js/css from a previous run against freshly-changed HTML, and
+        # you end up testing the old application. Ask me how I know.
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        SimpleHTTPRequestHandler.end_headers(self)
 
     def _read_body(self):
         n = int(self.headers.get("Content-Length") or 0)
@@ -67,6 +75,19 @@ class H(SimpleHTTPRequestHandler):
         """Serve chat.html with the egress interceptor injected as the FIRST script,
         before any application code can run. Disk copy is never modified."""
         html = open(os.path.join(ROOT, "chat.html"), encoding="utf-8").read()
+        # Derive a token from asset mtimes: stable across reloads, changes when
+        # the tree changes. Appended to js/ and css/ refs so the browser cannot
+        # reuse a previous version's scripts under the same cache key.
+        newest = 0
+        for sub in ("js", "css"):
+            d = os.path.join(ROOT, sub)
+            if os.path.isdir(d):
+                for f in os.listdir(d):
+                    try: newest = max(newest, int(os.path.getmtime(os.path.join(d, f))))
+                    except OSError: pass
+        tok = str(newest)
+        html = re.sub(r'(src|href)="((?:js|css)/[^"?]+)"',
+                      lambda m: '%s="%s?v=%s"' % (m.group(1), m.group(2), tok), html)
         tag = '<script src="/_shim.js"></script>'
         i = html.lower().find("<head>")
         html = html[:i+6] + "\n" + tag + html[i+6:] if i >= 0 else tag + html
@@ -129,6 +150,10 @@ class H(SimpleHTTPRequestHandler):
             return self._json({"exists": False, "bytes": 0, "revision": 0, "mtime": 0})
         if p == "/state":
             return self._json({})
+        if p == "/perf":
+            return self._json({"current": {"ctxSize": 16384, "gpuLayers": 99,
+                                           "kvCacheType": "q8_0"},
+                               "max": {"ctxSize": 262144}})
         if p == "/swap-status":
             return self._json({"state": "idle"})
         # real files
