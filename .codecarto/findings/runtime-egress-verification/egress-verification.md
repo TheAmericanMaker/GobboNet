@@ -10,7 +10,14 @@
 
 ## Scan Context
 
-- **Source:** `../../../` (repository root), unmodified working copy at `5524fd4`
+- **Source:** `../../../` (repository root), unmodified working copy at `5524fd4` (v1.5.1-era)
+- **Version caveat:** upstream has since moved to `f1b9f50` (v1.5.8), adding ~2,025 lines across 22
+  files including `SECURITY.md`, +405 in `fileserver.ps1` and +268 in `chat.html`. Re-checked
+  against that tree: the search relay's encoded command is **byte-identical** (md5 `3fed3c1f5730`),
+  so R4 still describes what ships; the three README lines in R4/R5 are unchanged; `.jobs/` is still
+  unignored (R7); `logit_bias` construction is unchanged. **Not re-measured:** the client-side
+  results R1, R2, R3 and R8 were captured on the older tree. Treat them as verified for v1.5.1-era
+  and unconfirmed for v1.5.8 until the harness is re-run.
 - **Static references:** `findings/defect-scan-semantic/semantic-defects.md`,
   `findings/defect-scan-mechanical/mechanical-defects.md`
 - **Date:** 2026-08-19

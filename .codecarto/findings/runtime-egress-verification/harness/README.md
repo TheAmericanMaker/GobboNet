@@ -84,12 +84,22 @@ that is the evidence for the metadata half of R4.
 ## 3. Full chain through the real file server
 
 ```bash
-# pick a port that is NOT 11434 — Ollama's default collides with GEMMA_LLM_PORT (see R6)
 SALT=a1b2c3d4e5f60718
 HASH=$(printf '%s' "${SALT}testpass123" | sha256sum | cut -d' ' -f1)
-GEMMA_ROOT="$PWD/../../../.." GEMMA_ACCESS_SECRET="$SALT:$HASH" GEMMA_LLM_PORT=11444 \
+GEMMA_ROOT="$PWD/../../../.." \
+GEMMA_ACCESS_SECRET="$SALT:$HASH" \
+GEMMA_LISTEN_PORT=8081 \
+GEMMA_LISTEN_PREFIX='http://127.0.0.1:8081/' \
+GEMMA_LLM_PORT=11444 \
   pwsh -NoProfile -File ../../../../fileserver.ps1
 ```
+
+Port notes, current as of v1.5.8: the file server resolves its port from
+`GEMMA_LISTEN_PORT`, then `.gobbonet-port`, then `9066` — it is no longer fixed at 8080.
+`GEMMA_LISTEN_PREFIX` is worth setting for a test run, because the default prefix is
+`http://+:<port>/` (all interfaces); the override above keeps the listener on loopback.
+`GEMMA_LLM_PORT` still falls back to `11434` inside `fileserver.ps1` even though the launcher
+now uses `11437`, so pick something free explicitly if you have Ollama installed (see R6).
 
 `fileserver.ps1` refuses to start without `GEMMA_ACCESS_SECRET` in `salt:sha256(salt+password)`
 form — normally set by `launch.bat`. Log in at `/login` with the password, keep the **same
